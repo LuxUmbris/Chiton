@@ -35,7 +35,6 @@ Built using `llvmlite` and a custom TOML-based build system, Chiton is designed 
 
 ```
 Chiton/
-│-- build.toml        # Project configuration
 │-- pyproject.toml    # Python build system (PEP 517)
 │-- setup.py          # Installation script
 │
@@ -62,7 +61,7 @@ pip install -e .
 ### Via pip
 
 ```bash
-pip install chiton
+pip install chiton-lang
 ```
 
 This installs the `chiton` CLI globally.
