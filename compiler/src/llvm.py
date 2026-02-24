@@ -203,19 +203,19 @@ class ChitonCompiler:
         if op == "/": return self.builder.sdiv(left, right)
         return self.builder.icmp_signed(op, left, right)
 
-def _gen_call(self, node):
-    callee_node = node[1]
-    args_nodes = node[2]
+    def _gen_call(self, node):
+        callee_node = node[1]
+        args_nodes = node[2]
     
-    # Check if we are calling a named function directly
-    if callee_node[0] == "id":
-        name = callee_node[1]
-        callee = self.symbols.get(name)
-    else:
-        callee = self._gen_node(callee_node)
+        # Check if we are calling a named function directly
+        if callee_node[0] == "id":
+            name = callee_node[1]
+            callee = self.symbols.get(name)
+        else:
+            callee = self._gen_node(callee_node)
         
-    args = [self._gen_node(a) for a in args_nodes]
-    return self.builder.call(callee, args)
+        args = [self._gen_node(a) for a in args_nodes]
+        return self.builder.call(callee, args)
 
     def _gen_return(self, node):
         val_node = node[1]
