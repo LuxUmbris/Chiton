@@ -11,7 +11,7 @@ if os.path.exists(readme_path):
 
 setup(
     name="chiton-lang",
-    version="0.1.3",
+    version="0.1.4",
     description="A high-performance systems programming language...",
     long_description=long_description,
     long_description_content_type="text/markdown",
