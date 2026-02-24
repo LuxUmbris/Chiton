@@ -16,7 +16,7 @@ class Parser:
         """Entry point: Parses a sequence of statements until EOF."""
         statements = []
         while self.current.type != "EOF":
-            # Skip empty lines/newlines if your lexer produces them
+            # Skip empty lines/newlines if the lexer produces them
             if self.current.type == "OPERATOR" and self.current.value == ";":
                 self._eat()
                 continue
@@ -49,8 +49,13 @@ class Parser:
         if self.current.type == "OPERATOR" and self.current.value == "->":
             self._eat("OPERATOR", "->")
             ret_type = self._eat("KEYWORD").value
+
+        alias = name
+        if self.current.type == "KEYWORD" and self.current.value == "as":
+            self._eat("KEYWORD", "as")
+            alias = self._eat("IDENTIFIER").value
         
-        return ("extern", name, params, ret_type)
+        return ("extern", name, params, ret_type, alias)
 
     def parse_params(self, is_extern=False):
         """Parses parameter lists like (a: int, b: str)"""

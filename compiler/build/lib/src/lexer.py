@@ -40,7 +40,7 @@ class Lexer:
         # Chiton Type Keywords & Control Flow
         KEYWORDS = {
             # Control Flow
-            "if", "else", "elif", "while", "repeat", "return", "pass", "extern", "def", "class",
+            "if", "else", "elif", "while", "repeat", "return", "pass", "extern", "def", "class", "as"
             # Primitive Types (C-ABI compatible)
             "int", "float", "double", "big", "bool", "void", "char",
             # Complex Types

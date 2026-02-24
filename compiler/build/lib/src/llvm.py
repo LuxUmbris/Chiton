@@ -73,6 +73,7 @@ class ChitonCompiler:
         name = node[1]
         params = node[2]
         ret_type_name = node[3]
+        alias = node[4]
         
         llvm_params = []
         for p in params:
@@ -83,7 +84,7 @@ class ChitonCompiler:
         fnty = ir.FunctionType(self.type_map[ret_type_name], llvm_params, var_arg=is_vararg)
         func = ir.Function(self.module, fnty, name=name)
         func.linkage = "external"
-        self.symbols[name] = func
+        self.symbols[alias] = func
         return func
 
     # map classes to structs with methods
