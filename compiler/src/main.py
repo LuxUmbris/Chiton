@@ -4,9 +4,9 @@ import tomllib
 import subprocess
 from glob import glob
 
-from src.lexer import Lexer
-from src.parser import Parser
-from src.llvm import ChitonCompiler
+from lexer import Lexer
+from parser import Parser
+from llvm import ChitonCompiler
 
 # ------------------------------------------------------------
 # Error reporting helper (can be reused by lexer/parser/backend)

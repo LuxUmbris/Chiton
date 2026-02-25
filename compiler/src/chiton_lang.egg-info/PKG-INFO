@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: chiton-lang
-Version: 0.1.4
-Summary: A high-performance systems programming language...
-Description-Content-Type: text/markdown
-Requires-Dist: llvmlite
-Dynamic: description-content-type
-Dynamic: requires-dist
-Dynamic: summary

@@ -1,5 +1,0 @@
-Metadata-Version: 2.4
-Name: chiton
-Version: 0.1.0
-Requires-Dist: llvmlite
-Dynamic: requires-dist

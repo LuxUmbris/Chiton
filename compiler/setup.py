@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 import os
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -11,14 +11,12 @@ if os.path.exists(readme_path):
 
 setup(
     name="chiton-lang",
-    version="0.1.4",
+    version="1.0.0",
     description="A high-performance systems programming language...",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    
-    packages=find_packages(where="src"),
+    py_modules=["main", "lexer", "parser", "llvm"],
     package_dir={"": "src"},
-    
     install_requires=[
         "llvmlite",
     ],
