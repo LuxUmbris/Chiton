@@ -2,49 +2,85 @@ class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
         self.current = self.lexer.read_token()
+        self._in_if_chain = False
 
     def _eat(self, type=None, value=None):
         tok = self.current
         if type is not None and tok.type != type:
-            raise Exception(f"Syntax Error at {tok.line}:{tok.col}: Expected {type}, got {tok.type}")
+            raise Exception(
+                f"Syntax Error at {tok.line}:{tok.col}: "
+                f"Expected {type}, got {tok.type}('{tok.value}')"
+            )
         if value is not None and tok.value != value:
-            raise Exception(f"Syntax Error at {tok.line}:{tok.col}: Expected '{value}', got '{tok.value}'")
+            raise Exception(
+                f"Syntax Error at {tok.line}:{tok.col}: "
+                f"Expected '{value}', got '{tok.value}'"
+            )
         self.current = self.lexer.read_token()
         return tok
 
+    def _skip_newlines(self):
+        while self.current.type == "NEWLINE":
+            self._eat("NEWLINE")
+
+    # ------------------------------------------------------------
+    # Program
+    # ------------------------------------------------------------
+
     def parse_program(self):
-        """Entry point: Parses a sequence of statements until EOF."""
         statements = []
+        self._skip_newlines()
+
         while self.current.type != "EOF":
-            # Skip empty lines/newlines if the lexer produces them
-            if self.current.type == "OPERATOR" and self.current.value == ";":
-                self._eat()
-                continue
-            statements.append(self.parse_statement())
+            stmt = self.parse_statement()
+
+            while self.current.type == "OPERATOR" and self.current.value == ";":
+                self._eat("OPERATOR", ";")
+
+            statements.append(stmt)
+            self._skip_newlines()
+
         return ("program", statements)
 
+    # ------------------------------------------------------------
+    # Statements
+    # ------------------------------------------------------------
+
     def parse_statement(self):
-        """Distinguishes between keywords (def, extern, if) and expressions."""
         if self.current.type == "KEYWORD":
-            if self.current.value == "extern":
+            kw = self.current.value
+            if kw == "extern":
                 return self.parse_extern()
-            if self.current.value == "def":
+            if kw == "def":
                 return self.parse_function_def()
-            if self.current.value == "return":
+            if kw == "return":
                 return self.parse_return()
-            
-        # Default to expression statement (assignments, calls, etc.)
+            if kw == "if":
+                return self.parse_if()
+            if kw == "elif":
+                return self.parse_elif()
+            if kw == "else":
+                return self.parse_else()
+            if kw == "while":
+                return self.parse_while()
+            if kw == "repeat":
+                return self.parse_repeat()
+
         return self.parse_expression()
 
+    # ------------------------------------------------------------
+    # extern def
+    # ------------------------------------------------------------
+
     def parse_extern(self):
-        """extern def name(params) -> type"""
         self._eat("KEYWORD", "extern")
         self._eat("KEYWORD", "def")
         name = self._eat("IDENTIFIER").value
+
         self._eat("OPERATOR", "(")
         params = self.parse_params(is_extern=True)
         self._eat("OPERATOR", ")")
-        
+
         ret_type = "void"
         if self.current.type == "OPERATOR" and self.current.value == "->":
             self._eat("OPERATOR", "->")
@@ -54,34 +90,195 @@ class Parser:
         if self.current.type == "KEYWORD" and self.current.value == "as":
             self._eat("KEYWORD", "as")
             alias = self._eat("IDENTIFIER").value
-        
+
         return ("extern", name, params, ret_type, alias)
 
+    # ------------------------------------------------------------
+    # Function definition
+    # ------------------------------------------------------------
+
+    def parse_function_def(self):
+        self._eat("KEYWORD", "def")
+        name = self._eat("IDENTIFIER").value
+
+        self._eat("OPERATOR", "(")
+        params = self.parse_params(is_extern=False)
+        self._eat("OPERATOR", ")")
+
+        ret_type = "void"
+        if self.current.type == "OPERATOR" and self.current.value == "->":
+            self._eat("OPERATOR", "->")
+            ret_type = self._eat("KEYWORD").value
+
+        self._eat("OPERATOR", ":")
+        self._skip_newlines()
+
+        self._eat("INDENT")
+        body = []
+        while self.current.type not in {"DEDENT", "EOF"}:
+            body.append(self.parse_statement())
+            self._skip_newlines()
+        self._eat("DEDENT")
+
+        return ("function", name, params, ret_type, body)
+
+    # ------------------------------------------------------------
+    # if / elif / else
+    # ------------------------------------------------------------
+
+    def parse_if(self):
+        self._in_if_chain = True
+
+        self._eat("KEYWORD", "if")
+        cond = self.parse_expression()
+        self._eat("OPERATOR", ":")
+        self._skip_newlines()
+
+        self._eat("INDENT")
+        body = []
+        while self.current.type not in {"DEDENT", "EOF"}:
+            body.append(self.parse_statement())
+            self._skip_newlines()
+        self._eat("DEDENT")
+
+        elifs = []
+        else_body = None
+
+        while self.current.type == "KEYWORD" and self.current.value == "elif":
+            elifs.append(self.parse_elif())
+
+        if self.current.type == "KEYWORD" and self.current.value == "else":
+            else_body = self.parse_else()
+
+        self._in_if_chain = False
+        return ("if", cond, body, elifs, else_body)
+
+    def parse_elif(self):
+        if not self._in_if_chain:
+            raise Exception(
+                f"Dangling 'elif' at {self.current.line}:{self.current.col}"
+            )
+
+        self._eat("KEYWORD", "elif")
+        cond = self.parse_expression()
+        self._eat("OPERATOR", ":")
+        self._skip_newlines()
+
+        self._eat("INDENT")
+        body = []
+        while self.current.type not in {"DEDENT", "EOF"}:
+            body.append(self.parse_statement())
+            self._skip_newlines()
+        self._eat("DEDENT")
+
+        return ("elif", cond, body)
+
+    def parse_else(self):
+        if not self._in_if_chain:
+            raise Exception(
+                f"Dangling 'else' at {self.current.line}:{self.current.col}"
+            )
+
+        self._eat("KEYWORD", "else")
+        self._eat("OPERATOR", ":")
+        self._skip_newlines()
+
+        self._eat("INDENT")
+        body = []
+        while self.current.type not in {"DEDENT", "EOF"}:
+            body.append(self.parse_statement())
+            self._skip_newlines()
+        self._eat("DEDENT")
+
+        return ("else", body)
+
+    # ------------------------------------------------------------
+    # while loop
+    # ------------------------------------------------------------
+
+    def parse_while(self):
+        self._eat("KEYWORD", "while")
+        cond = self.parse_expression()
+        self._eat("OPERATOR", ":")
+        self._skip_newlines()
+
+        self._eat("INDENT")
+        body = []
+        while self.current.type not in {"DEDENT", "EOF"}:
+            body.append(self.parse_statement())
+            self._skip_newlines()
+        self._eat("DEDENT")
+
+        return ("while", cond, body)
+
+    # ------------------------------------------------------------
+    # repeat loops
+    # ------------------------------------------------------------
+
+    def parse_repeat(self):
+        self._eat("KEYWORD", "repeat")
+
+        count_expr = self.parse_expression()
+
+        if self.current.type == "OPERATOR" and self.current.value == ",":
+            self._eat("OPERATOR", ",")
+            counter_name = self._eat("IDENTIFIER").value
+            self._eat("OPERATOR", ":")
+            self._skip_newlines()
+
+            self._eat("INDENT")
+            body = []
+            while self.current.type not in {"DEDENT", "EOF"}:
+                body.append(self.parse_statement())
+                self._skip_newlines()
+            self._eat("DEDENT")
+
+            return ("repeat_counter", count_expr, counter_name, body)
+
+        self._eat("OPERATOR", ":")
+        self._skip_newlines()
+
+        self._eat("INDENT")
+        body = []
+        while self.current.type not in {"DEDENT", "EOF"}:
+            body.append(self.parse_statement())
+            self._skip_newlines()
+        self._eat("DEDENT")
+
+        return ("repeat", count_expr, body)
+
+    # ------------------------------------------------------------
+    # Parameters
+    # ------------------------------------------------------------
+
     def parse_params(self, is_extern=False):
-        """Parses parameter lists like (a: int, b: str)"""
         params = []
-        while self.current.type != "OPERATOR" or self.current.value != ")":
-            # Handle variadic C-functions like printf(fmt, ...)
-            if is_extern and self.current.type == "OPERATOR" and self.current.value == ".":
-                for _ in range(3): self._eat("OPERATOR", ".")
+        while not (self.current.type == "OPERATOR" and self.current.value == ")"):
+
+            if is_extern and self.current.type == "OPERATOR" and self.current.value == "...":
+                self._eat("OPERATOR", "...")
                 params.append(("variadic", "..."))
                 break
-                
+
             p_name = self._eat("IDENTIFIER").value
             self._eat("OPERATOR", ":")
             p_type = self._eat("KEYWORD").value
             params.append((p_name, p_type))
-            
+
             if self.current.type == "OPERATOR" and self.current.value == ",":
                 self._eat("OPERATOR", ",")
             else:
                 break
         return params
 
+    # ------------------------------------------------------------
+    # Expressions
+    # ------------------------------------------------------------
+
     def parse_expression(self):
-        """Expression with assignment support (right-associative)."""
-        # Type-based declaration: int x = 5
-        if self.current.type == "KEYWORD" and self.current.value in {"int", "float", "double", "big", "str", "arr", "list"}:
+        if self.current.type == "KEYWORD" and self.current.value in {
+            "int", "float", "double", "big", "str", "arr", "list"
+        }:
             v_type = self._eat("KEYWORD").value
             v_name = self._eat("IDENTIFIER").value
             v_value = None
@@ -102,7 +299,9 @@ class Parser:
 
     def parse_compare(self):
         node = self.parse_add()
-        while self.current.type == "OPERATOR" and self.current.value in {"==", "!=", "<", ">", "<=", ">="}:
+        while self.current.type == "OPERATOR" and self.current.value in {
+            "==", "!=", "<", ">", "<=", ">="
+        }:
             op = self._eat().value
             right = self.parse_add()
             node = ("binop", op, node, right)
@@ -130,49 +329,70 @@ class Parser:
             return ("unary", op, self.parse_unary())
         return self.parse_postfix()
 
+    # ------------------------------------------------------------
+    # Postfix (calls)
+    # ------------------------------------------------------------
+
     def parse_postfix(self):
         node = self.parse_primary()
-        
-        # Handle function calls: name(args)
-        if self.current.type == "OPERATOR" and self.current.value == "(":
-            self._eat("OPERATOR", "(")
-            args = []
-            if not (self.current.type == "OPERATOR" and self.current.value == ")"):
-                while True:
-                    args.append(self.parse_expression())
-                    if self.current.type == "OPERATOR" and self.current.value == ",":
-                        self._eat(",")
-                    else: break
-            self._eat("OPERATOR", ")")
-            return ("call", node, args)
-            
+
+        while True:
+            if self.current.type == "OPERATOR" and self.current.value == "(":
+                self._eat("OPERATOR", "(")
+                args = []
+                if not (self.current.type == "OPERATOR" and self.current.value == ")"):
+                    while True:
+                        args.append(self.parse_expression())
+                        if self.current.type == "OPERATOR" and self.current.value == ",":
+                            self._eat("OPERATOR", ",")
+                        else:
+                            break
+                self._eat("OPERATOR", ")")
+                node = ("call", node, args)
+                continue
+            break
+
         return node
 
+    # ------------------------------------------------------------
+    # Primary
+    # ------------------------------------------------------------
+
     def parse_primary(self):
-        token = self.current
-        if token.type == "NUMBER_INT":
+        tok = self.current
+
+        if tok.type == "NUMBER_INT":
             self._eat()
-            return ("literal", "int", token.value)
-        if token.type == "NUMBER_FLOAT":
+            return ("literal", "int", tok.value)
+
+        if tok.type == "NUMBER_FLOAT":
             self._eat()
-            return ("literal", "double", token.value)
-        if token.type == "STRING":
+            return ("literal", "double", tok.value)
+
+        if tok.type in {"STRING", "RAW_STRING", "BYTE_STRING", "FSTRING"}:
             self._eat()
-            return ("literal", "str", token.value)
-        if token.type == "IDENTIFIER":
+            return ("literal", "str", tok.value)
+
+        if tok.type == "IDENTIFIER":
             self._eat()
-            return ("id", token.value)
-        if token.type == "OPERATOR" and token.value == "(":
+            return ("id", tok.value)
+
+        if tok.type == "OPERATOR" and tok.value == "(":
             self._eat("OPERATOR", "(")
             expr = self.parse_expression()
             self._eat("OPERATOR", ")")
             return expr
-        
-        raise Exception(f"Unexpected token {token}")
+
+        raise Exception(
+            f"Unexpected token {tok.type}('{tok.value}') at {tok.line}:{tok.col}"
+        )
+
+    # ------------------------------------------------------------
+    # return
+    # ------------------------------------------------------------
 
     def parse_return(self):
         self._eat("KEYWORD", "return")
-        val = None
-        if self.current.type != "EOF": # Simple check for line end
-             val = self.parse_expression()
-        return ("return", val)
+        if self.current.type in {"NEWLINE", "EOF"}:
+            return ("return", None)
+        return ("return", self.parse_expression())
